@@ -1,0 +1,17 @@
+expression -> equality
+
+// Covered by Binary type and the different operators. 
+// They simply need different parser rules
+equality -> comparison ( ('==' | '!=') comparison )*
+comparison -> addition ( ('>' | '<' | '<=' | '>=') addition )*
+addition -> multiplication ( ('+' | '-') multiplication )*
+multiplication -> unary ( ('*' | '/') unary )*
+
+// Covered by Unary 
+unary -> ('!' | '-') unary
+       | primary
+
+// Covered by Literal and Expression
+primary -> STRING | NUMBER | IDENTIFIER | 'True' | 'False' | 'nil'
+         | '(' expression ')'
+
