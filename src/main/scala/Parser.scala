@@ -1,31 +1,33 @@
 package Raza 
 
-sealed abstract class Expression
+sealed abstract class AST
+
+sealed abstract class Expression(val line: Int, val column: Int) extends AST
 object Expression {
-  sealed abstract class Binary(left: Expression, right: Expression) extends Expression 
-  case class Addition(l: Expression, r: Expression) extends Binary(l, r)
-  case class Subtraction(l: Expression, r: Expression) extends Binary(l, r)
-  case class Multiplication(l: Expression, r: Expression) extends Binary(l, r)
-  case class Division(l: Expression, r: Expression) extends Binary(l, r)
-  case class Equal(l: Expression, r: Expression) extends Binary(l, r)
-  case class NotEqual(l: Expression, r: Expression) extends Binary(l, r)
-  case class Less(l: Expression, r: Expression) extends Binary(l, r)
-  case class Greater(l: Expression, r: Expression) extends Binary(l, r)
-  case class LessEqual(l: Expression, r: Expression) extends Binary(l, r)
-  case class GreaterEqual(l: Expression, r: Expression) extends Binary(l, r)
+  sealed abstract class Binary(left: Expression, right: Expression, l: Int, c: Int) extends Expression(l, c)
+  case class Addition(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
+  case class Subtraction(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
+  case class Multiplication(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
+  case class Division(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
+  case class Equal(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
+  case class NotEqual(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
+  case class Less(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
+  case class Greater(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
+  case class LessEqual(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
+  case class GreaterEqual(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
 
-  sealed abstract class Unary(expr: Expression) extends Expression
-  case class Invert(e: Expression) extends Unary(e)
-  case class Negate(e: Expression) extends Unary(e)
+  sealed abstract class Unary(expr: Expression, l: Int, c: Int) extends Expression(l, c)
+  case class Invert(e: Expression, l: Int, c: Int) extends Unary(e, l, c)
+  case class Negate(e: Expression, l: Int, c: Int) extends Unary(e, l, c)
 
-  sealed abstract class Literal extends Expression
-  case class Str(str: String) extends Literal
-  case class Number[T: Numeric](num: T) extends Literal
-  case class Identifier(name: String) extends Literal
-  case object True extends Literal
-  case object False extends Literal
-  case object Nil extends Literal
-
+  sealed abstract class Literal(l: Int, c: Int) extends Expression(l, c)
+  case class Str(str: String, l: Int, c: Int) extends Literal(l, c)
+  case class Integer(num: Int, l: Int, c: Int) extends Literal(l, c)
+  case class Decimal(num: Double, l: Int, c: Int) extends Literal(l, c)
+  case class Identifier(name: String, l: Int, c: Int) extends Literal(l, c)
+  case class True(l: Int, c: Int) extends Literal(l, c)
+  case class False(l: Int, c: Int) extends Literal(l, c)
+  case class Nil(l: Int, c: Int) extends Literal(l, c)
 }
 
 case class ParserException(val token: Token) extends Exception
@@ -33,7 +35,7 @@ case class ParserException(val token: Token) extends Exception
 class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
   private var index: Int = 0
 
-  def parse: Expression = {
+  def parse: AST = {
     log("---Now Parsing---")
     index = 0
     val p = parseExpression
@@ -50,16 +52,16 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
   def parsePrimary: Expression = {
     val token = nextToken
 
-    val ret = (token match {
-      case Token.Str(str, _, _) => Expression.Str(str)
-      case Token.Identifier(name, _, _) => Expression.Identifier(name)
-      case Token.WholeNumber(numStr, _, _) => Expression.Number(numStr.toInt)
-      case Token.DecimalNumber(numStr, _, _) => Expression.Number(numStr.toDouble)
-      case Token.True(_, _) => Expression.True
-      case Token.False(_, _) => Expression.False
-      case Token.Nil(_, _) => Expression.Nil
+    val ret: Expression = (token match {
+      case Token.Str(str, l, c) => Expression.Str(str, l, c)
+      case Token.Identifier(name, l, c) => Expression.Identifier(name, l, c)
+      case Token.WholeNumber(numStr, l, c) => Expression.Integer(numStr.toInt, l, c)
+      case Token.DecimalNumber(numStr, l, c) => Expression.Decimal(numStr.toDouble, l, c)
+      case Token.True(l, c) => Expression.True(l, c)
+      case Token.False(l, c) => Expression.False(l, c)
+      case Token.Nil(l, c) => Expression.Nil(l, c)
 
-      case Token.LeftParens(_, _) => {
+      case Token.LeftParens(l, c) => {
         val expr = parseExpression
         val rightParens = nextToken
         if (!rightParens.isInstanceOf[Token.RightParens])
@@ -75,13 +77,13 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
   }
 
   def parseUnary: Expression = peek match {
-    case Token.Minus(_, _) => {
+    case Token.Minus(l, c) => {
       nextToken
-      Expression.Invert(parseUnary)
+      Expression.Invert(parseUnary, l, c)
     }
-    case Token.Bang(_, _) => {
+    case Token.Bang(l, c) => {
       nextToken
-      Expression.Invert(parseUnary)
+      Expression.Invert(parseUnary, l, c)
     }
     case _ => parsePrimary
   }
@@ -91,13 +93,13 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
     log(s"expr is: ${expr} in mul")
     
     peek match {
-      case Token.Star(_, _) => {
+      case Token.Star(l, c) => {
         nextToken
-        Expression.Multiplication(expr, parseMultiplication)
+        Expression.Multiplication(expr, parseMultiplication, l, c)
       }
-      case Token.Slash(_, _) => {
+      case Token.Slash(l, c) => {
         nextToken
-        Expression.Division(expr, parseMultiplication)
+        Expression.Division(expr, parseMultiplication, l, c)
       }
       case _ => expr
     }
@@ -108,13 +110,13 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
     log(s"expr is: ${expr} in add")
 
     peek match {
-      case Token.Plus(_, _) => {
+      case Token.Plus(l, c) => {
         nextToken
-        Expression.Addition(expr, parseAddition)
+        Expression.Addition(expr, parseAddition, l, c)
       }
-      case Token.Minus(_, _) => {
+      case Token.Minus(l, c) => {
         nextToken
-        Expression.Subtraction(expr, parseAddition)
+        Expression.Subtraction(expr, parseAddition, l, c)
       }
       case _ => expr
     }
@@ -125,21 +127,21 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
     log(s"expr is: ${expr} in comparison")
 
     peek match {
-      case Token.Greater(_, _) => {
+      case Token.Greater(l, c) => {
         nextToken
-        Expression.Greater(expr, parseComparison)
+        Expression.Greater(expr, parseComparison, l, c)
       }
-      case Token.Less(_, _) => {
+      case Token.Less(l, c) => {
         nextToken
-        Expression.Less(expr, parseComparison)
+        Expression.Less(expr, parseComparison, l, c)
       }
-      case Token.GreaterEqual(_, _) => {
+      case Token.GreaterEqual(l, c) => {
         nextToken
-        Expression.GreaterEqual(expr, parseComparison)
+        Expression.GreaterEqual(expr, parseComparison, l, c)
       }
-      case Token.LessEqual(_, _) => {
+      case Token.LessEqual(l, c) => {
         nextToken
-        Expression.LessEqual(expr, parseComparison)
+        Expression.LessEqual(expr, parseComparison, l, c)
       }
       case _ => expr
     }
@@ -150,15 +152,15 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
     log(s"expr is: ${expr} in equality")
 
     peek match {
-      case Token.EqualsEquals(_, _) => {
+      case Token.EqualsEquals(l, c) => {
         nextToken
-        Expression.Equal(expr, parseEquality)
+        Expression.Equal(expr, parseEquality, l, c)
       }
-      case Token.BangEquals(_, _) => {
+      case Token.BangEquals(l, c) => {
         nextToken
-        Expression.NotEqual(expr, parseEquality)
+        Expression.NotEqual(expr, parseEquality, l, c)
       }
-      case Token.EOF(_, _) => {
+      case Token.EOF(l, c) => {
         log("Saw EOF")
         expr
       }
