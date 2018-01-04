@@ -1,6 +1,9 @@
 package Raza 
 
-sealed abstract class AST
+object `package` {
+  // Placeholder until other syntactic constructs are implemented
+  type AST = Expression
+}
 
 sealed abstract class Expression(val line: Int, val column: Int)
 object Expression {

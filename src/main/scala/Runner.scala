@@ -9,11 +9,15 @@ object Main extends App {
   try {
     val lexer = new Lexer(source)
     val tokens = lexer.tokens
-    println(tokens)
+    // println(tokens)
 
-    val parser = new Parser(tokens, true)
+    val parser = new Parser(tokens)
     val ast = parser.parse
-    println(ast)
+    // println(ast)
+
+    val interpreter = new Interpreter(ast)
+    val result = interpreter.interpretAll
+    print(result)
 
   } catch {
     case LexerException(line, column) => {
@@ -28,6 +32,14 @@ object Main extends App {
         s"Could not parse ${token} at line ${token.line+1}:\n" +
         sourceLine(token.line) + "\n" +
         " " * token.column + "^\n"
+      )
+    }
+    case RazaRuntimeException(line, column, msg) => {
+      println(
+        s"Runtime Error at line ${line}:\n" +
+        sourceLine(line) + "\n" +
+        " " * column + "^\n" +
+        msg
       )
     }
   }
