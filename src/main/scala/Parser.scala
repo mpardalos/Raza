@@ -2,7 +2,7 @@ package Raza
 
 sealed abstract class AST
 
-sealed abstract class Expression(val line: Int, val column: Int) extends AST
+sealed abstract class Expression(val line: Int, val column: Int)
 object Expression {
   sealed abstract class Binary(left: Expression, right: Expression, l: Int, c: Int) extends Expression(l, c)
   case class Addition(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
@@ -16,9 +16,10 @@ object Expression {
   case class LessEqual(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
   case class GreaterEqual(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
 
-  sealed abstract class Unary(expr: Expression, l: Int, c: Int) extends Expression(l, c)
-  case class Invert(e: Expression, l: Int, c: Int) extends Unary(e, l, c)
-  case class Negate(e: Expression, l: Int, c: Int) extends Unary(e, l, c)
+  sealed abstract class Unary(val expr: Expression, l: Int, c: Int)
+    extends Expression(l, c)
+  case class Not(e: Expression, l: Int, c: Int) extends Unary(e, l, c)
+  case class Minus(e: Expression, l: Int, c: Int) extends Unary(e, l, c)
 
   sealed abstract class Literal(l: Int, c: Int) extends Expression(l, c)
   case class Str(str: String, l: Int, c: Int) extends Literal(l, c)
@@ -79,11 +80,11 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
   def parseUnary: Expression = peek match {
     case Token.Minus(l, c) => {
       nextToken
-      Expression.Invert(parseUnary, l, c)
+      Expression.Minus(parseUnary, l, c)
     }
     case Token.Bang(l, c) => {
       nextToken
-      Expression.Invert(parseUnary, l, c)
+      Expression.Not(parseUnary, l, c)
     }
     case _ => parsePrimary
   }

@@ -100,8 +100,8 @@ object Token {
       }),
       ("^\".*?\"".r,            m => Some(new Token.Str(
         m.toString.substring(1, m.toString.length-1), line, column))),
-      ("^\\d+(?!\\w)".r,        m => Some(new Token.WholeNumber(m.toString, line, column))),
-      ("^\\d+\\.\\d+(?!\\w)".r, m => Some(new Token.DecimalNumber(m.toString, line, column))),
+      ("^\\d+(?!\\w|\\.)".r,        m => Some(new Token.WholeNumber(m.toString, line, column))),
+      ("^\\d+\\.\\d+(?!\\w|\\.)".r, m => Some(new Token.DecimalNumber(m.toString, line, column))),
       ("^\\b(?!\\d)\\w+\\b".r,  m => Some(new Token.Identifier(m.toString, line, column)))
     )
 
