@@ -7,31 +7,30 @@ object `package` {
 
 sealed abstract class Expression(val line: Int, val column: Int)
 object Expression {
-  sealed abstract class Binary(left: Expression, right: Expression, l: Int, c: Int) extends Expression(l, c)
-  case class Addition(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
-  case class Subtraction(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
-  case class Multiplication(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
-  case class Division(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
-  case class Equal(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
-  case class NotEqual(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
-  case class Less(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
-  case class Greater(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
-  case class LessEqual(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
-  case class GreaterEqual(l: Expression, r: Expression, ln: Int, c: Int) extends Binary(l, r, ln, c)
+  // Binary
+  case class Addition(left: Expression, right: Expression, ln: Int, c: Int) extends Expression(ln, c)
+  case class Subtraction(left: Expression, right: Expression, ln: Int, c: Int) extends Expression(ln, c)
+  case class Multiplication(left: Expression, right: Expression, ln: Int, c: Int) extends Expression(ln, c)
+  case class Division(left: Expression, right: Expression, ln: Int, c: Int) extends Expression(ln, c)
+  case class Equal(left: Expression, right: Expression, ln: Int, c: Int) extends Expression(ln, c)
+  case class NotEqual(left: Expression, right: Expression, ln: Int, c: Int) extends Expression(ln, c)
+  case class Less(left: Expression, right: Expression, ln: Int, c: Int) extends Expression(ln, c)
+  case class Greater(left: Expression, right: Expression, ln: Int, c: Int) extends Expression(ln, c)
+  case class LessEqual(left: Expression, right: Expression, ln: Int, c: Int) extends Expression(ln, c)
+  case class GreaterEqual(left: Expression, right: Expression, ln: Int, c: Int) extends Expression(ln, c)
 
-  sealed abstract class Unary(val expr: Expression, l: Int, c: Int)
-    extends Expression(l, c)
-  case class Not(e: Expression, l: Int, c: Int) extends Unary(e, l, c)
-  case class Minus(e: Expression, l: Int, c: Int) extends Unary(e, l, c)
+  // Unary
+  case class Not(expr: Expression, l: Int, c: Int) extends Expression(l, c)
+  case class Minus(expr: Expression, l: Int, c: Int) extends Expression(l, c)
 
-  sealed abstract class Literal(l: Int, c: Int) extends Expression(l, c)
-  case class Str(str: String, l: Int, c: Int) extends Literal(l, c)
-  case class Integer(num: Int, l: Int, c: Int) extends Literal(l, c)
-  case class Decimal(num: Double, l: Int, c: Int) extends Literal(l, c)
-  case class Identifier(name: String, l: Int, c: Int) extends Literal(l, c)
-  case class True(l: Int, c: Int) extends Literal(l, c)
-  case class False(l: Int, c: Int) extends Literal(l, c)
-  case class Nil(l: Int, c: Int) extends Literal(l, c)
+  // Literals
+  case class Str(str: String, l: Int, c: Int) extends Expression(l, c)
+  case class Integer(num: Int, l: Int, c: Int) extends Expression(l, c)
+  case class Decimal(num: Double, l: Int, c: Int) extends Expression(l, c)
+  case class Identifier(name: String, l: Int, c: Int) extends Expression(l, c)
+  case class True(l: Int, c: Int) extends Expression(l, c)
+  case class False(l: Int, c: Int) extends Expression(l, c)
+  case class Nil(l: Int, c: Int) extends Expression(l, c)
 }
 
 case class ParserException(val token: Token) extends Exception
