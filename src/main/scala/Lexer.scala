@@ -45,9 +45,10 @@ object Token {
   case class Return(l: Int, c: Int) extends Token(l, c)
   case class True(l: Int, c: Int) extends Token(l, c)
   case class False(l: Int, c: Int) extends Token(l, c)
+  case class Print(l: Int, c: Int) extends Token(l, c)
 
   // Literals
-  case class Identifier(value: String, l: Int, c: Int) extends Token(l, c)
+  case class Identifier(name: String, l: Int, c: Int) extends Token(l, c)
   case class Str(value: String, l: Int, c: Int) extends Token(l, c)
   case class WholeNumber(value: String, l: Int, c: Int) extends Token(l, c)
   case class DecimalNumber(value: String, l: Int, c: Int) extends Token(l, c)
@@ -92,6 +93,7 @@ object Token {
       ("^\\breturn\\b".r,       m => Some(new Token.Return(line, column))),
       ("^\\bTrue\\b".r,         m => Some(new Token.True(line, column))),
       ("^\\bFalse\\b".r,        m => Some(new Token.False(line, column))),
+      ("^\\bprint\\b".r,        m => Some(new Token.Print(line, column))),
       ("^ ".r,                  m => None),
       ("^(\\n|\\#.*$)".r,       m => {
         this.line += 1
