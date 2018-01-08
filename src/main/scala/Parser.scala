@@ -8,6 +8,7 @@ sealed abstract class Stmt(val line: Int, val column: Int)
 object Stmt {
   case class ExprStmt(expr: Expression, l: Int, c: Int) extends Stmt(l, c)
   case class Let(identifier: Expression.Identifier, value: Expression, l: Int, c: Int) extends Stmt(l, c)
+  case class Var(identifier: Expression.Identifier, value: Expression, l: Int, c: Int) extends Stmt(l, c)
   case class Print(value: Expression, l: Int, c: Int) extends Stmt(l, c)
 }
 
@@ -188,6 +189,14 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
       val expr = parseExpression
       next[Token.Semicolon] 
       Stmt.Let(Expression.Identifier(id.name, id.line, id.column), expr, l, c)
+    }
+    case Token.Var(l, c) => {
+      next[Token.Var]
+      val id = next[Token.Identifier]
+      next[Token.Equals]
+      val expr = parseExpression
+      next[Token.Semicolon] 
+      Stmt.Var(Expression.Identifier(id.name, id.line, id.column), expr, l, c)
     }
     case Token(l, c) => {
       val expr = parseExpression

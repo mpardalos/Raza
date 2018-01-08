@@ -112,9 +112,7 @@ case class RazaNumber[T: DoubleOrInt](val value: T) extends RazaObject {
 case class RazaBool(val value: Boolean) extends RazaObject {
   override def __not__(): RazaBool = new RazaBool(!value)
 
-  /*
-   * Just for readability
-   */
+  // Just for readability
   def unary_!(): RazaBool = this.__not__
 }
 
@@ -124,27 +122,48 @@ class Interpreter(val ast: List[Stmt]) {
   import Stmt._
   import Expression._
 
-  val baseEnv: Map[String, RazaObject] = new HashMap()
+  private sealed abstract class Value(val value: RazaObject)
+  private case class Constant(v: RazaObject) extends Value(v)
+  private case class Variable(v: RazaObject) extends Value(v)
+
+  private val baseEnv: Map[String, Value] = new HashMap()
 
   def interpretAll = ast.foreach {stmt => exec(stmt)}
 
   def exec(stmt: Stmt): Unit = try {
     stmt match {
       case Print(expr, _, _) => println(evaluate(expr).printableString)
-      case Let(identifier, expr, l, c) => if (baseEnv contains identifier.name) 
-        throw new RazaRuntimeException(l, c, s"Cannot assign to ${identifier.name}. Value is immutable")
-        else baseEnv += (identifier.name -> evaluate(expr))
       case ExprStmt(expr, _, _) => evaluate(expr)
+
+      case Var(identifier, expr, l, c) => baseEnv get identifier.name match {
+        case Some(Variable(_)) | None => 
+          baseEnv put (identifier.name, Variable(evaluate(expr)))
+
+        case Some(Constant(_)) => runtimeException(l, c,
+          s"Cannot convert constant ${identifier.name} to variable")
+      }
+
+      case Let(identifier, expr, l, c) => baseEnv get identifier.name match {
+        case None => baseEnv put (identifier.name, Constant(evaluate(expr)))
+
+        case Some(Constant(_)) => runtimeException(l, c, 
+          s"Cannot assign to ${identifier.name}. Is a constant")
+
+        case Some(Variable(_)) => runtimeException(l, c, 
+          s"Cannot assign to variable ${identifier.name} using let. Use var instead")
+
+      }
     }
   } catch {
     case PartialRazaRuntimeException(msg) =>
-      throw new RazaRuntimeException(stmt.line, stmt.column, msg)
+      runtimeException(stmt.line, stmt.column, msg)
   }
 
   def evaluate(expr: Expression): RazaObject = expr match {
-    case Identifier(name, l, c) => baseEnv getOrElse(name, 
-      {throw new RazaRuntimeException(l, c, s"Identifier $name not defined")})
-
+    case Identifier(name, l, c) => baseEnv get name match {
+      case Some(value) => value.value
+      case None => runtimeException(l, c, s"Identifier $name not defined")
+    }
     case Str(str, _, _) => new RazaString(str)
     case Integer(num, _, _) => new RazaNumber(num)
     case Decimal(num, _, _) => new RazaNumber(num)
@@ -164,4 +183,7 @@ class Interpreter(val ast: List[Stmt]) {
     case Not(expr, _, _) => evaluate(expr).__not__
     case Minus(expr, _, _) => evaluate(expr).__neg__
   }
-  } 
+
+  private def runtimeException(line: Int, column: Int, msg: String) =
+    throw new RazaRuntimeException(line, column, msg)
+} 
