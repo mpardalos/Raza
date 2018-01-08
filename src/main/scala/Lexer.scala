@@ -131,7 +131,7 @@ object Token {
           case None => throw new LexerException(line, column)
         })
       }
-      result += Some(Token.EOF(line-1, column))
+      result += Some(Token.EOF(line, column))
 
       result.flatten.toList
     }

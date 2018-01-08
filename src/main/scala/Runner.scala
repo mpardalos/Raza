@@ -16,8 +16,7 @@ object Main extends App {
     // println(ast)
 
     val interpreter = new Interpreter(ast)
-    val result = interpreter.interpretAll
-    print(result)
+    interpreter.interpretAll
 
   } catch {
     case LexerException(line, column) => {

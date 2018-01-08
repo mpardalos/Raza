@@ -41,7 +41,7 @@ object Expression {
 
 case class ParserException(val token: Token) extends Exception
 
-class Parser(allTokens: List[Token], val loglevel: Boolean = true) {
+class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
   private var index: Int = 0
 
   def parse: List[Stmt] = {
