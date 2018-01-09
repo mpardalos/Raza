@@ -59,12 +59,19 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = true) {
     ast.toList
   }
 
+  /* 
+   * expression -> equality 
+   */
   def parseExpression: Expression = {
     val p = parseEquality
     log("Expression parsed")
     p
   }
 
+  /* 
+   * primary -> STRING | IDENTIFIER | WHOLENUMBER | DECIMALNUMBER 
+   *          | "True" | "False" | "Nil" | "(" expression ")"
+   */
   def parsePrimary: Expression = {
     val token = next[Token]
 
@@ -118,6 +125,9 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = true) {
     call
   }
 
+  /* unary -> "!" unary
+   *        | call
+   */
   def parseUnary: Expression = peek match {
     case Token.Minus(l, c) => {
       next[Token]
@@ -130,6 +140,10 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = true) {
     case _ => parseCall
   }
 
+  /*
+   * multiplication -> unary ("*" | "/") multiplication
+   *                 | unary
+   */
   def parseMultiplication: Expression = {
     val expr = parseUnary
     
@@ -146,6 +160,10 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = true) {
     }
   }
 
+  /*
+   * addition -> multiplication ("+"|"-") addition
+   *           | multiplication
+   */
   def parseAddition: Expression = {
     val expr = parseMultiplication
 
@@ -162,6 +180,10 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = true) {
     }
   }
 
+  /*
+   * comparison -> addition ("<"|">"|"<="|">=") addition
+   *             | addition
+   */
   def parseComparison: Expression = {
     val expr = parseAddition
 
@@ -186,6 +208,10 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = true) {
     }
   }
   
+  /*
+   * equality -> comparison ("!="|"==") comparison
+   *           | comparison
+   */
   def parseEquality: Expression = {
     val expr = parseComparison
 
@@ -206,6 +232,19 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = true) {
     }
   }
 
+  /* 
+   * stmt -> printStmt 
+   *       | letStmt
+   *       | varStmt
+   *       | ifStmt
+   *       | exprStmt
+   *
+   * printStmt -> "print" expression ";"
+   * letStmt -> "let" identifier "=" expression ";"
+   * varStmt -> "var" identifier "=" expression ";"
+   * ifStmt -> "if" expression block ( "else" block )? ";"
+   * exprStmt -> expression ";"
+   */
   def parseStmt: Stmt = peek match {
     case Token.Print(l, c) => {
       next[Token.Print]
@@ -249,6 +288,9 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = true) {
     }
   } 
 
+  /*
+   * block -> "{" Stmt* "}"
+   */
   def parseBlock: Block = {
     val statements = new ArrayBuffer[Stmt]
     val braced = peek.isInstanceOf[Token.LeftBrace]
