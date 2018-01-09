@@ -1,6 +1,7 @@
 package Raza
 
 import collection.mutable._
+import util.Try
 
 case class RazaRuntimeException(line: Int, column: Int, msg: String) extends Exception
 case class PartialRazaRuntimeException(msg: String) extends Exception
@@ -31,6 +32,7 @@ abstract class RazaObject {
   def __neg__(): RazaObject = unaryExceptionMessage("invert")
   def __not__(): RazaObject = unaryExceptionMessage("negate")
   def __str__(): RazaString = unaryExceptionMessage("stringify")
+  def __call__(args: List[RazaObject]): RazaObject = unaryExceptionMessage("call")
 }
 
 case class RazaString(val value: String) extends RazaObject {
@@ -133,31 +135,43 @@ class Interpreter(val ast: List[Stmt]) {
   def exec(stmt: Stmt): Unit = try {
     stmt match {
       case Print(expr, _, _) => println(evaluate(expr).printableString)
+
       case ExprStmt(expr, _, _) => evaluate(expr)
 
       case Var(identifier, expr, l, c) => baseEnv get identifier.name match {
         case Some(Variable(_)) | None => 
           baseEnv put (identifier.name, Variable(evaluate(expr)))
-
         case Some(Constant(_)) => runtimeException(l, c,
           s"Cannot convert constant ${identifier.name} to variable")
       }
 
       case Let(identifier, expr, l, c) => baseEnv get identifier.name match {
         case None => baseEnv put (identifier.name, Constant(evaluate(expr)))
-
         case Some(Constant(_)) => runtimeException(l, c, 
           s"Cannot assign to ${identifier.name}. Is a constant")
-
         case Some(Variable(_)) => runtimeException(l, c, 
           s"Cannot assign to variable ${identifier.name} using let. Use var instead")
 
+      }
+
+      case If(condition, ifBlock, elseBlock, _, _) => {
+        val conditionValue = evaluate(condition)
+        val conditionResult = Try(conditionValue.asInstanceOf[RazaBool]) 
+          .getOrElse {runtimeException(condition.line, condition.column, 
+            s"If condition must be a RazaBool, not ${conditionValue.getClass.getSimpleName}")}
+        
+        conditionResult match {
+          case RazaBool(true) => execBlock(ifBlock)
+          case RazaBool(false) => execBlock(elseBlock)
+        }
       }
     }
   } catch {
     case PartialRazaRuntimeException(msg) =>
       runtimeException(stmt.line, stmt.column, msg)
   }
+
+  def execBlock(block: Block) = block.stmts.foreach(exec)
 
   def evaluate(expr: Expression): RazaObject = expr match {
     case Identifier(name, l, c) => baseEnv get name match {
@@ -170,6 +184,9 @@ class Interpreter(val ast: List[Stmt]) {
     case True(_, _) => new RazaBool(true)
     case False(_, _) => new RazaBool(false)
     case Nil(_, _) => new RazaNil
+
+    case Call(callee, args, _, _) => evaluate(callee).__call__(args.map(evaluate _))
+
     case Addition(left, right, _, _) => evaluate(left).__add__(evaluate(right))
     case Subtraction(left, right, _, _) => evaluate(left).__minus__(evaluate(right))
     case Multiplication(left, right, _, _) => evaluate(left).__mul__(evaluate(right))

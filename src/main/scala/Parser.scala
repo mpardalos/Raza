@@ -4,16 +4,19 @@ import util.Try
 import collection.mutable.ArrayBuffer
 import reflect.ClassTag
 
+case class Block(stmts: List[Stmt])
+
 sealed abstract class Stmt(val line: Int, val column: Int)
 object Stmt {
   case class ExprStmt(expr: Expression, l: Int, c: Int) extends Stmt(l, c)
   case class Let(identifier: Expression.Identifier, value: Expression, l: Int, c: Int) extends Stmt(l, c)
   case class Var(identifier: Expression.Identifier, value: Expression, l: Int, c: Int) extends Stmt(l, c)
   case class Print(value: Expression, l: Int, c: Int) extends Stmt(l, c)
+  case class If(condition: Expression, ifBlock: Block, elseBlock: Block, l: Int, c: Int) extends Stmt(l, c)
 }
 
 sealed abstract class Expression(val line: Int, val column: Int)
-object Expression {
+object Expression { 
   // Binary
   case class Addition(left: Expression, right: Expression, l: Int, c: Int) extends Expression(l, c)
   case class Subtraction(left: Expression, right: Expression, l: Int, c: Int) extends Expression(l, c)
@@ -29,6 +32,7 @@ object Expression {
   // Unary
   case class Not(expr: Expression, l: Int, c: Int) extends Expression(l, c)
   case class Minus(expr: Expression, l: Int, c: Int) extends Expression(l, c)
+  case class Call(callee: Expression, args: List[Expression], l: Int, c: Int) extends Expression(l, c)
 
   // Literals
   case class Str(str: String, l: Int, c: Int) extends Expression(l, c)
@@ -42,7 +46,7 @@ object Expression {
 
 case class ParserException(val token: Token) extends Exception
 
-class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
+class Parser(allTokens: List[Token], val loglevel: Boolean = true) {
   private var index: Int = 0
 
   def parse: List[Stmt] = {
@@ -77,10 +81,41 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
         val rightParens = next[Token.RightParens]
         expr
       }
-      case _ => throw new ParserException(token)
+      case _ => cantParse(token)
     })
     log(s"parsed primary ${ret}")
     ret
+  }
+
+  /* 
+   * call -> call "(" args? ")"
+   *
+   * args -> primary ("," args)?
+   *
+   * ^ is left recursive. Convert to:
+   *
+   * call -> primary ( "(" + args? + ")" )*
+   *
+   * args -> expression ("," args)?
+   */
+  def parseCall: Expression = {
+    def parseArgs(argsSoFar: List[Expression] = List()): List[Expression] = {
+      val thisArg = parseExpression
+      peek match {
+        case _: Token.Comma => {next[Token.Comma]; parseArgs(argsSoFar :+ thisArg)}
+        case _ => argsSoFar
+      }
+    }
+
+    var call: Expression = parsePrimary
+    while (peek.isInstanceOf[Token.LeftParens]) {
+      val leftParens = next[Token.LeftParens]
+      val args = if (!peek.isInstanceOf[Token.RightParens]) parseArgs() else List()
+      val rightParens = next[Token.RightParens]
+      call = new Expression.Call(call, args, leftParens.l, leftParens.c)
+    }
+
+    call
   }
 
   def parseUnary: Expression = peek match {
@@ -92,12 +127,11 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
       next[Token]
       Expression.Not(parseUnary, l, c)
     }
-    case _ => parsePrimary
+    case _ => parseCall
   }
 
   def parseMultiplication: Expression = {
     val expr = parseUnary
-    log(s"expr is: ${expr} in mul")
     
     peek match {
       case Token.Star(l, c) => {
@@ -114,7 +148,6 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
 
   def parseAddition: Expression = {
     val expr = parseMultiplication
-    log(s"expr is: ${expr} in add")
 
     peek match {
       case Token.Plus(l, c) => {
@@ -131,7 +164,6 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
 
   def parseComparison: Expression = {
     val expr = parseAddition
-    log(s"expr is: ${expr} in comparison")
 
     peek match {
       case Token.Greater(l, c) => {
@@ -156,7 +188,6 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
   
   def parseEquality: Expression = {
     val expr = parseComparison
-    log(s"expr is: ${expr} in equality")
 
     peek match {
       case Token.EqualsEquals(l, c) => {
@@ -198,6 +229,19 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
       next[Token.Semicolon] 
       Stmt.Var(Expression.Identifier(id.name, id.line, id.column), expr, l, c)
     }
+    case Token.If(l, c) => {
+      next[Token.If]
+      val condition = parseExpression
+      val ifBlock = parseBlock
+
+      val elseBlock: Block = if (peek.isInstanceOf[Token.Else]) {
+        next[Token.Else]
+        parseBlock
+      } else new Block(List())
+
+      new Stmt.If(condition, ifBlock, elseBlock, l, c)
+    }
+
     case Token(l, c) => {
       val expr = parseExpression
       next[Token.Semicolon]
@@ -205,13 +249,30 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
     }
   } 
 
+  def parseBlock: Block = {
+    val statements = new ArrayBuffer[Stmt]
+    val braced = peek.isInstanceOf[Token.LeftBrace]
+
+    if (braced) {
+      next[Token.LeftBrace]
+      while (!peek.isInstanceOf[Token.RightBrace]) {
+        statements += parseStmt
+      }
+      next[Token.RightBrace]
+    } else statements += parseStmt
+
+    new Block(statements.toList)
+  }
+
   def checkAs[T](t: Token)(implicit tag: ClassTag[T]) = 
-    Try(tag.runtimeClass.cast(t).asInstanceOf[T]) getOrElse {throw new ParserException(t)}
+    Try(tag.runtimeClass.cast(t).asInstanceOf[T]) getOrElse {cantParse(t)}
 
   def next[T <: Token](implicit tag: ClassTag[T]): T = {
     val token = allTokens(this.index)
     this.index += 1
-    log(s"Consumed ${token}")
+
+    val callerName: String = Thread.currentThread.getStackTrace()(2).getMethodName
+    log(s"--$callerName Consumed $token as ${tag.toString}")
 
     checkAs[T](token)(tag)
   }

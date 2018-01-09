@@ -9,11 +9,10 @@ object Main extends App {
   try {
     val lexer = new Lexer(source)
     val tokens = lexer.tokens
-    // println(tokens)
 
     val parser = new Parser(tokens)
     val ast = parser.parse
-    // println(ast)
+    println(ast)
 
     val interpreter = new Interpreter(ast)
     interpreter.interpretAll
