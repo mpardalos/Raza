@@ -46,6 +46,7 @@ object Token {
   case class True(l: Int, c: Int) extends Token(l, c)
   case class False(l: Int, c: Int) extends Token(l, c)
   case class Print(l: Int, c: Int) extends Token(l, c)
+  case class Fun(l: Int, c: Int) extends Token(l, c)
 
   // Literals
   case class Identifier(name: String, l: Int, c: Int) extends Token(l, c)
@@ -94,6 +95,7 @@ object Token {
       ("^\\bTrue\\b".r,         m => Some(new Token.True(line, column))),
       ("^\\bFalse\\b".r,        m => Some(new Token.False(line, column))),
       ("^\\bprint\\b".r,        m => Some(new Token.Print(line, column))),
+      ("^\\bfun\\b".r,          m => Some(new Token.Fun(line, column))),
       ("^ ".r,                  m => None),
       ("^(\\n|\\#.*$)".r,       m => {
         this.line += 1
