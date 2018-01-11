@@ -1,168 +1,77 @@
 package Raza
 
-import collection.mutable._
+import collection.mutable.HashMap
 import util.Try
 
-case class RazaRuntimeException(line: Int, column: Int, msg: String) extends Exception
-case class PartialRazaRuntimeException(msg: String) extends Exception
+sealed abstract class Value(val value: RazaObject)
+case class Constant(v: RazaObject) extends Value(v)
+case class Variable(v: RazaObject) extends Value(v)
 
-abstract class RazaObject {
-  private def binaryExceptionMessage(operation: String, other: RazaObject) = 
-    throw new PartialRazaRuntimeException(
-      s"Can't $operation ${this.getClass.getSimpleName} and ${other.getClass.getSimpleName}"
-    )
+sealed abstract class AssignmentFailure
+case object IsConstant extends AssignmentFailure
+case object AssignedVarToConst extends AssignmentFailure
+case object AssignedConstToVar extends AssignmentFailure
 
-  private def unaryExceptionMessage(operation: String) =
-    throw new PartialRazaRuntimeException(
-      s"Can't $operation ${this.getClass.getSimpleName}"
-    )
+class Environment(_parent: Option[Environment]) {
+  private val parent: Option[Environment] = _parent
+  private val contents: HashMap[String, Value] = new HashMap()
 
-  def printableString: String = this.__str__.value
+  def this() = this(None)
+  def this(_parent: Environment) = this(Some(_parent))
 
-  def __add__(other: RazaObject): RazaObject = binaryExceptionMessage("add", other)
-  def __minus__(other: RazaObject): RazaObject = binaryExceptionMessage("subtract", other)
-  def __mul__(other: RazaObject): RazaObject = binaryExceptionMessage("multiply", other)
-  def __div__(other: RazaObject): RazaObject = binaryExceptionMessage("divide", other)
-  def __eq__(other: RazaObject): RazaObject = binaryExceptionMessage("compare", other)
-  def __neq__(other: RazaObject): RazaObject = binaryExceptionMessage("compare", other)
-  def __le__(other: RazaObject): RazaObject = binaryExceptionMessage("compare", other)
-  def __gr__(other: RazaObject): RazaObject = binaryExceptionMessage("compare", other)
-  def __leq__(other: RazaObject): RazaObject = binaryExceptionMessage("compare", other)
-  def __geq__(other: RazaObject): RazaObject = binaryExceptionMessage("compare", other)
-  def __neg__(): RazaObject = unaryExceptionMessage("invert")
-  def __not__(): RazaObject = unaryExceptionMessage("negate")
-  def __str__(): RazaString = unaryExceptionMessage("stringify")
-  def __call__(args: List[RazaObject]): RazaObject = unaryExceptionMessage("call")
-}
-
-case class RazaString(val value: String) extends RazaObject {
-  override def __add__(other: RazaObject) = other match {
-    case RazaString(str) => new RazaString(this.value + str)
-    case _ => super.__add__(other)
+  def get(key: String): Option[Value] = contents.get(key) match {
+    case s @ Some(_) => s
+    case None => parent.flatMap(_.get(key))
   }
-
-  override def __eq__(other: RazaObject): RazaObject = other match {
-    case RazaString(str) => new RazaBool(this.value == str)
-    case _ => super.__eq__(other)
-  }
-
-  override def __neq__(other: RazaObject): RazaObject = other match {
-    case RazaString(str) => new RazaBool(this.value != str)
-    case _ => super.__neq__(other)
-  }
-
-  override def __str__() = this
-}
-
-class DoubleOrInt[T]
-object DoubleOrInt {
-  implicit object IntWitness extends DoubleOrInt[Int]
-  implicit object DoubleWitness extends DoubleOrInt[Double]
-}
-
-case class RazaNumber[T: DoubleOrInt](val value: T) extends RazaObject {
-  private def numCombine(intCase: (Int, Int) => Int,
-                         doubleCase: (Double, Double) => Double,
-                         default: RazaObject => RazaObject)
-                        (other: RazaObject): RazaObject = other match {
-    case RazaNumber(otherNum: Int) => value match {
-      case num: Int => new RazaNumber(intCase(num, otherNum))
-      case num: Double => new RazaNumber(doubleCase(num, otherNum.toDouble))
+   
+  def put(key: String, value: Value): Either[AssignmentFailure, Unit] = value match {
+    case v: Variable => get(key) match {
+      case Some(Variable(_)) | None => contents put (key, v); Right(Unit)
+      case Some(Constant(_)) => Left(AssignedVarToConst)
     }
-    case RazaNumber(otherNum: Double) => value match {
-      case num: Int => new RazaNumber(doubleCase(num.toDouble, otherNum))
-      case num: Double => new RazaNumber(doubleCase(num, otherNum))
+    case v: Constant => get(key) match {
+      case None => contents put (key, v); Right(Unit)
+      case Some(Constant(_)) => Left(IsConstant)
+      case Some(Variable(_)) => Left(AssignedConstToVar)
     }
-    case _ => default(other)
   }
-
-  private def boolCombine(intCase: (Int, Int) => Boolean,
-                          doubleCase: (Double, Double) => Boolean,
-                          default: RazaObject => RazaObject)
-                         (other: RazaObject): RazaObject = other match {
-    case RazaNumber(otherNum: Int) => value match {
-      case num: Int => new RazaBool(intCase(num, otherNum))
-      case num: Double => new RazaBool(doubleCase(num, otherNum.toDouble))
-    }
-    case RazaNumber(otherNum: Double) => value match {
-      case num: Int => new RazaBool(doubleCase(num.toDouble, otherNum))
-      case num: Double => new RazaBool(doubleCase(num, otherNum))
-    }
-    case _ => default(other)
-  }
-
-
-  override def __add__(other: RazaObject) = numCombine(_+_, _+_, super.__add__)(other)
-  override def __minus__(other: RazaObject) = numCombine(_-_, _-_, super.__minus__)(other)
-  override def __div__(other: RazaObject) = numCombine(_/_, _/_, super.__div__)(other)
-  override def __mul__(other: RazaObject) = numCombine(_*_, _*_, super.__mul__)(other)
-
-  override def __eq__(other: RazaObject) = boolCombine(_==_, _==_, super.__eq__)(other)
-  override def __neq__(other: RazaObject) = boolCombine(_!=_, _!=_, super.__neq__)(other)
-  override def __gr__(other: RazaObject) = boolCombine(_>_, _>_, super.__gr__)(other)
-  override def __le__(other: RazaObject) = boolCombine(_<_, _<_, super.__le__)(other)
-  override def __leq__(other: RazaObject) = boolCombine(_<=_, _<=_, super.__leq__)(other)
-  override def __geq__(other: RazaObject) = boolCombine(_>=_, _>=_, super.__geq__)(other)
-
-  override def __str__() = value match {
-    case v: Int => new RazaString(v.toString)
-    case v: Double => new RazaString(v.toString)
-  }
-
 }
-
-case class RazaBool(val value: Boolean) extends RazaObject {
-  override def __not__(): RazaBool = new RazaBool(!value)
-
-  // Just for readability
-  def unary_!(): RazaBool = this.__not__
-}
-
-case class RazaNil() extends RazaObject 
 
 class Interpreter(val ast: List[Stmt]) {
   import Stmt._
   import Expression._
 
-  private sealed abstract class Value(val value: RazaObject)
-  private case class Constant(v: RazaObject) extends Value(v)
-  private case class Variable(v: RazaObject) extends Value(v)
+  private val baseEnv: Environment = new Environment()
 
-  private val baseEnv: Map[String, Value] = new HashMap()
+  def interpretAll = ast.foreach {stmt => exec(stmt, baseEnv)}
 
-  def interpretAll = ast.foreach {stmt => exec(stmt)}
-
-  def exec(stmt: Stmt): Unit = try {
+  def exec(stmt: Stmt, env: Environment): Unit = try {
     stmt match {
-      case Print(expr, _, _) => println(evaluate(expr).printableString)
+      case Print(expr, _, _) => println(evaluate(expr, env).printableString)
 
-      case ExprStmt(expr, _, _) => evaluate(expr)
+      case ExprStmt(expr, _, _) => evaluate(expr, env)
 
-      case Var(identifier, expr, l, c) => baseEnv get identifier.name match {
-        case Some(Variable(_)) | None => 
-          baseEnv put (identifier.name, Variable(evaluate(expr)))
-        case Some(Constant(_)) => runtimeException(l, c,
-          s"Cannot convert constant ${identifier.name} to variable")
-      }
-
-      case Let(identifier, expr, l, c) => baseEnv get identifier.name match {
-        case None => baseEnv put (identifier.name, Constant(evaluate(expr)))
-        case Some(Constant(_)) => runtimeException(l, c, 
-          s"Cannot assign to ${identifier.name}. Is a constant")
-        case Some(Variable(_)) => runtimeException(l, c, 
-          s"Cannot assign to variable ${identifier.name} using let. Use var instead")
-
-      }
+      case d @ Declaration(identifier, expr, l, c) => 
+        env put (identifier.name, d match {
+          case _: Var => Variable(evaluate(expr, env))
+          case _: Let => Constant(evaluate(expr, env))
+        }) match {
+          case Right(_) => ()
+          case Left(AssignedVarToConst | IsConstant) => 
+            runtimeException(l, c, s"Cannot assign to ${identifier.name}. It is a constant")
+          case Left(AssignedConstToVar) =>
+            runtimeException(l, c, s"Cannot assign to variable ${identifier.name} using let. Use var instead")
+        }
 
       case If(condition, ifBlock, elseBlock, _, _) => {
-        val conditionValue = evaluate(condition)
+        val conditionValue = evaluate(condition, env)
         val conditionResult = Try(conditionValue.asInstanceOf[RazaBool]) 
           .getOrElse {runtimeException(condition.line, condition.column, 
             s"If condition must be a RazaBool, not ${conditionValue.getClass.getSimpleName}")}
         
         conditionResult match {
-          case RazaBool(true) => execBlock(ifBlock)
-          case RazaBool(false) => execBlock(elseBlock)
+          case RazaBool(true) => execBlock(ifBlock, env)
+          case RazaBool(false) => execBlock(elseBlock, env)
         }
       }
     }
@@ -171,9 +80,9 @@ class Interpreter(val ast: List[Stmt]) {
       runtimeException(stmt.line, stmt.column, msg)
   }
 
-  def execBlock(block: Block) = block.stmts.foreach(exec)
+  def execBlock(block: Block, env: Environment) = block.stmts.foreach {exec(_, env)}
 
-  def evaluate(expr: Expression): RazaObject = expr match {
+  def evaluate(expr: Expression, env: Environment): RazaObject = expr match {
     case Identifier(name, l, c) => baseEnv get name match {
       case Some(value) => value.value
       case None => runtimeException(l, c, s"Identifier $name not defined")
@@ -185,20 +94,21 @@ class Interpreter(val ast: List[Stmt]) {
     case False(_, _) => new RazaBool(false)
     case Nil(_, _) => new RazaNil
 
-    case Call(callee, args, _, _) => evaluate(callee).__call__(args.map(evaluate _))
+    case Call(callee, args, _, _) => evaluate(callee, env).__call__(args.map {evaluate(_, env)})
+    case FunctionDef(_, _, _, _) => ???
 
-    case Addition(left, right, _, _) => evaluate(left).__add__(evaluate(right))
-    case Subtraction(left, right, _, _) => evaluate(left).__minus__(evaluate(right))
-    case Multiplication(left, right, _, _) => evaluate(left).__mul__(evaluate(right))
-    case Division(left, right, _, _) => evaluate(left).__div__(evaluate(right))
-    case Equal(left, right, _, _) => evaluate(left).__eq__(evaluate(right))
-    case NotEqual(left, right, _, _) => evaluate(left).__neq__(evaluate(right))
-    case Less(left, right, _, _) => evaluate(left).__le__(evaluate(right))
-    case Greater(left, right, _, _) => evaluate(left).__gr__(evaluate(right))
-    case LessEqual(left, right, _, _) => evaluate(left).__leq__(evaluate(right))
-    case GreaterEqual(left, right, _, _) => evaluate(left).__geq__(evaluate(right))
-    case Not(expr, _, _) => evaluate(expr).__not__
-    case Minus(expr, _, _) => evaluate(expr).__neg__
+    case Addition(left, right, _, _) => evaluate(left, env).__add__(evaluate(right, env))
+    case Subtraction(left, right, _, _) => evaluate(left, env).__minus__(evaluate(right, env))
+    case Multiplication(left, right, _, _) => evaluate(left, env).__mul__(evaluate(right, env))
+    case Division(left, right, _, _) => evaluate(left, env).__div__(evaluate(right, env))
+    case Equal(left, right, _, _) => evaluate(left, env).__eq__(evaluate(right, env))
+    case NotEqual(left, right, _, _) => evaluate(left, env).__neq__(evaluate(right, env))
+    case Less(left, right, _, _) => evaluate(left, env).__le__(evaluate(right, env))
+    case Greater(left, right, _, _) => evaluate(left, env).__gr__(evaluate(right, env))
+    case LessEqual(left, right, _, _) => evaluate(left, env).__leq__(evaluate(right, env))
+    case GreaterEqual(left, right, _, _) => evaluate(left, env).__geq__(evaluate(right, env))
+    case Not(expr, _, _) => evaluate(expr, env).__not__
+    case Minus(expr, _, _) => evaluate(expr, env).__neg__
   }
 
   private def runtimeException(line: Int, column: Int, msg: String) =

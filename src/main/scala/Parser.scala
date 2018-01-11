@@ -9,8 +9,17 @@ case class Block(stmts: List[Stmt])
 sealed abstract class Stmt(val line: Int, val column: Int)
 object Stmt {
   case class ExprStmt(expr: Expression, l: Int, c: Int) extends Stmt(l, c)
-  case class Let(identifier: Expression.Identifier, value: Expression, l: Int, c: Int) extends Stmt(l, c)
-  case class Var(identifier: Expression.Identifier, value: Expression, l: Int, c: Int) extends Stmt(l, c)
+
+  sealed abstract class Declaration(val identifier: Expression.Identifier, val value: Expression, 
+                                    override val line: Int,
+                                    override val column: Int) extends Stmt(line, column)
+  case class Let(id: Expression.Identifier, v: Expression, l: Int, c: Int) extends Declaration(id, v, l, c)
+  case class Var(id: Expression.Identifier, v: Expression, l: Int, c: Int) extends Declaration(id, v, l, c)
+  object Declaration {
+    def unapply(d: Declaration): Option[(Expression.Identifier, Expression, Int, Int)] = 
+      Some((d.identifier, d.value, d.line, d.column))
+  }
+
   case class Print(value: Expression, l: Int, c: Int) extends Stmt(l, c)
   case class If(condition: Expression, ifBlock: Block, elseBlock: Block, l: Int, c: Int) extends Stmt(l, c)
 }
