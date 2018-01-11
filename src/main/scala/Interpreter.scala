@@ -37,13 +37,13 @@ class Environment(_parent: Option[Environment]) {
   }
 }
 
-class Interpreter(val ast: List[Stmt]) {
+object Interpreter {
   import Stmt._
   import Expression._
 
   private val baseEnv: Environment = new Environment()
 
-  def interpretAll = ast.foreach {stmt => exec(stmt, baseEnv)}
+  def interpretAll(program: Block) = program.stmts.foreach {stmt => exec(stmt, baseEnv)}
 
   def exec(stmt: Stmt, env: Environment): Unit = try {
     stmt match {

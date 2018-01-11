@@ -60,14 +60,14 @@ case class ParserException(val token: Token) extends Exception
 class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
   private var index: Int = 0
 
-  def parse: List[Stmt] = {
+  def parse: Block = {
     log("---Now Parsing---")
     index = 0
     val ast: ArrayBuffer[Stmt] = new ArrayBuffer()
     while (!peek.isInstanceOf[Token.EOF])
       ast += parseStmt
     log("---Parsing finished---")
-    ast.toList
+    new Block(ast.toList)
   }
 
   /* 
