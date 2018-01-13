@@ -14,7 +14,7 @@ case object AssignedConstToVar extends AssignmentFailure
 
 class Environment(_parent: Option[Environment]) {
   private val parent: Option[Environment] = _parent
-  private val contents: HashMap[String, Value] = new HashMap()
+  val contents: HashMap[String, Value] = new HashMap()
 
   def this() = this(None)
   def this(_parent: Environment) = this(Some(_parent))
@@ -35,6 +35,15 @@ class Environment(_parent: Option[Environment]) {
       case Some(Variable(_)) => Left(AssignedConstToVar)
     }
   }
+
+  def forcePut(key: String, value: Value): Unit = contents put (key, value)
+
+  def ++(other: List[Tuple2[String, Value]]): Environment = {
+    val env = new Environment(this.parent)
+    contents.foreach {case (k, v) => env forcePut(k, v)}
+    other.foreach {case (k, v) => env forcePut(k, v)}
+    env
+  }
 }
 
 object Interpreter {
@@ -43,7 +52,7 @@ object Interpreter {
 
   private val baseEnv: Environment = new Environment()
 
-  def interpretAll(program: Block) = program.stmts.foreach {stmt => exec(stmt, baseEnv)}
+  def interpretAll(program: Block) = execBlock(program, baseEnv)
 
   def exec(stmt: Stmt, env: Environment): Unit = try {
     stmt match {
@@ -80,10 +89,14 @@ object Interpreter {
       runtimeException(stmt.line, stmt.column, msg)
   }
 
-  def execBlock(block: Block, env: Environment) = block.stmts.foreach {exec(_, env)}
+  def execBlock(block: Block, env: Environment): RazaObject = block match {
+    case ExprStmt(expr, _, _) :: Nil => evaluate(expr, env)
+    case stmt :: stmts => exec(stmt, env); execBlock(stmts, env)
+    case Nil => new RazaNil()
+  }
 
   def evaluate(expr: Expression, env: Environment): RazaObject = expr match {
-    case Identifier(name, l, c) => baseEnv get name match {
+    case Identifier(name, l, c) => env get name match {
       case Some(value) => value.value
       case None => runtimeException(l, c, s"Identifier $name not defined")
     }
@@ -92,10 +105,10 @@ object Interpreter {
     case Decimal(num, _, _) => new RazaNumber(num)
     case True(_, _) => new RazaBool(true)
     case False(_, _) => new RazaBool(false)
-    case Nil(_, _) => new RazaNil
+    case Nil_(_, _) => new RazaNil
+    case FunctionDef(args, body, _, _) => new RazaFunction(args.map(_.name), body, env)
 
     case Call(callee, args, _, _) => evaluate(callee, env).__call__(args.map {evaluate(_, env)})
-    case FunctionDef(_, _, _, _) => ???
 
     case Addition(left, right, _, _) => evaluate(left, env).__add__(evaluate(right, env))
     case Subtraction(left, right, _, _) => evaluate(left, env).__minus__(evaluate(right, env))

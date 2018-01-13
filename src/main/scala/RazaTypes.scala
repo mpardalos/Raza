@@ -16,7 +16,11 @@ abstract class RazaObject {
 
   def printableString: String = this.__str__.value
 
-  def __add__(other: RazaObject): RazaObject = binaryExceptionMessage("add", other)
+  def __add__(other: RazaObject): RazaObject = 
+    if (this.isInstanceOf[RazaString] || other.isInstanceOf[RazaString]) 
+      new RazaString(this.__str__.value + other.__str__.value)
+    else
+      binaryExceptionMessage("add", other)
   def __minus__(other: RazaObject): RazaObject = binaryExceptionMessage("subtract", other)
   def __mul__(other: RazaObject): RazaObject = binaryExceptionMessage("multiply", other)
   def __div__(other: RazaObject): RazaObject = binaryExceptionMessage("divide", other)
@@ -33,10 +37,8 @@ abstract class RazaObject {
 }
 
 case class RazaString(val value: String) extends RazaObject {
-  override def __add__(other: RazaObject) = other match {
-    case RazaString(str) => new RazaString(this.value + str)
-    case _ => super.__add__(other)
-  }
+  override def __add__(other: RazaObject): RazaString = 
+    new RazaString(this.value + other.__str__.value)
 
   override def __eq__(other: RazaObject): RazaObject = other match {
     case RazaString(str) => new RazaBool(this.value == str)
@@ -48,7 +50,7 @@ case class RazaString(val value: String) extends RazaObject {
     case _ => super.__neq__(other)
   }
 
-  override def __str__() = this
+  override def __str__(): RazaString = this
 }
 
 class DoubleOrInt[T]
@@ -101,11 +103,7 @@ case class RazaNumber[T: DoubleOrInt](val value: T) extends RazaObject {
   override def __leq__(other: RazaObject) = boolCombine(_<=_, _<=_, super.__leq__)(other)
   override def __geq__(other: RazaObject) = boolCombine(_>=_, _>=_, super.__geq__)(other)
 
-  override def __str__() = value match {
-    case v: Int => new RazaString(v.toString)
-    case v: Double => new RazaString(v.toString)
-  }
-
+  override def __str__() = new RazaString("" + this.value)
 }
 
 case class RazaBool(val value: Boolean) extends RazaObject {
@@ -113,6 +111,14 @@ case class RazaBool(val value: Boolean) extends RazaObject {
 
   // Just for readability
   def unary_!(): RazaBool = this.__not__
+}
+
+case class RazaFunction(val argNames: List[String], val body: Block, val closure: Environment)
+extends RazaObject {
+  override def __call__(args: List[RazaObject]) = {
+    val env = new Environment(closure) ++ (argNames zip args.map(v => Constant(v)))
+    Interpreter.execBlock(body, env)
+  }
 }
 
 case class RazaNil() extends RazaObject 

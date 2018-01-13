@@ -4,7 +4,9 @@ import util.Try
 import collection.mutable.ArrayBuffer
 import reflect.ClassTag
 
-case class Block(stmts: List[Stmt])
+object `package` {
+  type Block = List[Stmt]
+}
 
 sealed abstract class Stmt(val line: Int, val column: Int)
 object Stmt {
@@ -50,7 +52,7 @@ object Expression {
   case class Identifier(name: String, l: Int, c: Int) extends Expression(l, c)
   case class True(l: Int, c: Int) extends Expression(l, c)
   case class False(l: Int, c: Int) extends Expression(l, c)
-  case class Nil(l: Int, c: Int) extends Expression(l, c)
+  case class Nil_(l: Int, c: Int) extends Expression(l, c)
 
   case class FunctionDef(args: List[Identifier], body: Block, l: Int, c: Int) extends Expression(l, c)
 }
@@ -67,7 +69,7 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
     while (!peek.isInstanceOf[Token.EOF])
       ast += parseStmt
     log("---Parsing finished---")
-    new Block(ast.toList)
+    ast.toList
   }
 
   /* 
@@ -95,7 +97,7 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
       case Token.DecimalNumber(numStr, l, c) => Expression.Decimal(numStr.toDouble, l, c)
       case Token.True(l, c) => Expression.True(l, c)
       case Token.False(l, c) => Expression.False(l, c)
-      case Token.Nil(l, c) => Expression.Nil(l, c)
+      case Token.Nil(l, c) => Expression.Nil_(l, c)
       
       case Token.Fun(l, c) => {
         next[Token.LeftParens]
@@ -106,7 +108,7 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
         val body = if (peek.isInstanceOf[Token.LeftBrace]) parseBlock 
           else {
             val e = parseExpression
-            new Block(List(new Stmt.ExprStmt(e, e.line, e.column)))
+            List(new Stmt.ExprStmt(e, e.line, e.column))
           }
         
         Expression.FunctionDef(args, body, l, c)
@@ -151,7 +153,7 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
     val thisArg = parseExpression
     peek match {
       case _: Token.Comma => {next[Token.Comma]; parseArgs(argsSoFar :+ thisArg)}
-      case _ => argsSoFar
+      case _ => argsSoFar :+ thisArg
     }
   }
 
@@ -164,7 +166,7 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
     val thisArg = new Expression.Identifier(id.name, id.l, id.c)
     peek match {
       case _: Token.Comma => {next[Token.Comma]; parseArgNames(argsSoFar :+ thisArg)}
-      case _ => argsSoFar
+      case _ => argsSoFar :+ thisArg
     }
   }
 
@@ -320,7 +322,7 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
       val elseBlock: Block = if (peek.isInstanceOf[Token.Else]) {
         next[Token.Else]
         parseBlock
-      } else new Block(List())
+      } else List()
 
       new Stmt.If(condition, ifBlock, elseBlock, l, c)
     }
@@ -348,7 +350,7 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
       next[Token.RightBrace]
     } else statements += parseStmt
 
-    new Block(statements.toList)
+    statements.toList
   }
 
   def checkAs[T](t: Token)(implicit tag: ClassTag[T]) = 
