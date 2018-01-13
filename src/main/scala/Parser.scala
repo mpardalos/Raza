@@ -105,11 +105,7 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
         next[Token.RightParens]
         next[Token.FatArrow]
         
-        val body = if (peek.isInstanceOf[Token.LeftBrace]) parseBlock 
-          else {
-            val e = parseExpression
-            List(new Stmt.ExprStmt(e, e.line, e.column))
-          }
+        val body = parseFunctionBody
         
         Expression.FunctionDef(args, body, l, c)
       }
@@ -284,12 +280,14 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
    *       | varStmt
    *       | ifStmt
    *       | exprStmt
+   *       | funcStmt
    *
    * printStmt -> "print" expression ";"
    * letStmt -> "let" identifier "=" expression ";"
    * varStmt -> "var" identifier "=" expression ";"
    * ifStmt -> "if" expression block ( "else" block )? ";"
    * exprStmt -> expression ";"
+   * funcStmt -> "fun" identifier "(" args ")" "=>" (expression | block)
    */
   def parseStmt: Stmt = peek match {
     case Token.Print(l, c) => {
@@ -326,6 +324,22 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
 
       new Stmt.If(condition, ifBlock, elseBlock, l, c)
     }
+    case Token.Fun(l, c) => {
+      next[Token.Fun]
+      val id = next[Token.Identifier]
+      next[Token.LeftParens]
+      val argNames = parseArgNames
+      next[Token.RightParens]
+      next[Token.FatArrow]
+      
+      val body = parseFunctionBody
+
+      Stmt.Let(
+        Expression.Identifier(id.name, id.line, id.column),
+        Expression.FunctionDef(argNames, body, l, c),
+        l, c)
+    }
+
 
     case Token(l, c) => {
       val expr = parseExpression
@@ -351,6 +365,18 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
     } else statements += parseStmt
 
     statements.toList
+  }
+
+  /* 
+   * functionBody -> "{" stmt* "}"
+   *               | exprStmt
+   */
+  def parseFunctionBody = peek match {
+    case _: Token.LeftBrace => parseBlock 
+    case _ => {
+      val e = parseExpression
+      List(new Stmt.ExprStmt(e, e.line, e.column))
+    }
   }
 
   def checkAs[T](t: Token)(implicit tag: ClassTag[T]) = 
