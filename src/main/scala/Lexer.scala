@@ -97,7 +97,7 @@ object Token {
       ("^\\bprint\\b".r,        m => Some(new Token.Print(line, column))),
       ("^\\bfun\\b".r,          m => Some(new Token.Fun(line, column))),
       ("^ ".r,                  m => None),
-      ("^(\\n|\\#.*$)".r,       m => {
+      ("^(\\n|#.*)".r,       m => {
         this.line += 1
         this.column = 0
         None
