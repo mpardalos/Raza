@@ -14,7 +14,7 @@ object Main extends App {
     val ast = parser.parse
     //println(ast)
 
-    Interpreter.interpretAll(ast)
+    Interpreter.execBlock(ast)
 
   } catch {
     case LexerException(line, column) => {

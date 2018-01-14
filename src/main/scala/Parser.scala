@@ -23,7 +23,7 @@ object Stmt {
   }
 
   case class Print(value: Expression, l: Int, c: Int) extends Stmt(l, c)
-  case class If(condition: Expression, ifBlock: Block, elseBlock: Block, l: Int, c: Int) extends Stmt(l, c)
+  // case class If(condition: Expression, ifBlock: Block, elseBlock: Block, l: Int, c: Int) extends Stmt(l, c)
 }
 
 sealed abstract class Expression(val line: Int, val column: Int)
@@ -44,6 +44,8 @@ object Expression {
   case class Not(expr: Expression, l: Int, c: Int) extends Expression(l, c)
   case class Minus(expr: Expression, l: Int, c: Int) extends Expression(l, c)
   case class Call(callee: Expression, args: List[Expression], l: Int, c: Int) extends Expression(l, c)
+
+  case class If(condition: Expression, ifCase: Block, elseCase: Block, l: Int, c: Int) extends Expression(l, c)
 
   // Literals
   case class Str(str: String, l: Int, c: Int) extends Expression(l, c)
@@ -83,9 +85,11 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
 
   /* 
    * primary -> STRING | IDENTIFIER | WHOLENUMBER | DECIMALNUMBER 
-   *          | "True" | "False" | "Nil" | "(" expression ")" | functionDef
+   *          | "True" | "False" | "Nil" | "(" expression ")" | functionDef | IfExpr
    *
    * functionDef -> "fun" "(" args ")" "=>" (expression | block)
+   *
+   * IfExpr -> "if" expression expression "else" expression
    */
   def parsePrimary: Expression = {
     val token = next[Token]
@@ -108,6 +112,18 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
         val body = parseFunctionBody
         
         Expression.FunctionDef(args, body, l, c)
+      }
+
+      case Token.If(l, c) => {
+        val condition = parseExpression
+        val ifBlock = parseBlock
+
+        val elseBlock: Block = if (peek.isInstanceOf[Token.Else]) {
+          next[Token.Else]
+          parseBlock
+        } else List()
+
+        new Expression.If(condition, ifBlock, elseBlock, l, c)
       }
 
       case Token.LeftParens(l, c) => {
@@ -311,18 +327,6 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
       val expr = parseExpression
       maybeNext[Token.Semicolon] 
       Stmt.Var(Expression.Identifier(id.name, id.line, id.column), expr, l, c)
-    }
-    case Token.If(l, c) => {
-      next[Token.If]
-      val condition = parseExpression
-      val ifBlock = parseBlock
-
-      val elseBlock: Block = if (peek.isInstanceOf[Token.Else]) {
-        next[Token.Else]
-        parseBlock
-      } else List()
-
-      new Stmt.If(condition, ifBlock, elseBlock, l, c)
     }
     case Token.Fun(l, c) => {
       next[Token.Fun]

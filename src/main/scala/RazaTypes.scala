@@ -33,7 +33,7 @@ abstract class RazaObject {
   def __neg__(): RazaObject = unaryExceptionMessage("invert")
   def __not__(): RazaObject = unaryExceptionMessage("negate")
   def __str__(): RazaString = unaryExceptionMessage("stringify")
-  def __call__(args: List[RazaObject]): RazaObject = unaryExceptionMessage("call")
+  def __call__(args: List[RazaObject], currentEnv: Environment): RazaObject = unaryExceptionMessage("call")
 }
 
 case class RazaString(val value: String) extends RazaObject {
@@ -115,8 +115,9 @@ case class RazaBool(val value: Boolean) extends RazaObject {
 
 case class RazaFunction(val argNames: List[String], val body: Block, val closure: Environment)
 extends RazaObject {
-  override def __call__(args: List[RazaObject]) = {
-    val env = new Environment(closure) ++ (argNames zip args.map(v => Constant(v)))
+  override def __call__(args: List[RazaObject], currentEnv: Environment) = {
+    val env = new Environment(closure) ++ currentEnv ++ Map(argNames.zip(args.map(v => Constant(v))): _*)
+
     Interpreter.execBlock(body, env)
   }
 }
