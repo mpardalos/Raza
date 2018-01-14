@@ -1,6 +1,9 @@
 # Raza
 A toy programming language used as a learning project. Implemented in Scala.
 
+## Name
+The name of the spaceship from the *inexplicably* cancelled SyFy show Dark Matter.
+
 ## Status
 
 Lexer and parser are done, and it's reasonably easy to add new constructs. Both are
