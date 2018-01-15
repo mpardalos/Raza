@@ -2,6 +2,7 @@ package Raza
 
 import collection.immutable.HashMap
 import util.Try
+import io.StdIn
 
 sealed abstract class Value(val value: RazaObject)
 case class Constant(v: RazaObject) extends Value(v)
@@ -19,6 +20,7 @@ class Environment(_parent: Option[Environment], _contents: Map[String, Value]) {
   def this() = this(None, new HashMap())
   def this(_parent: Environment) = this(Some(_parent), new HashMap())
   def this(_parent: Option[Environment]) = this(_parent, new HashMap())
+  def this(_contents: Map[String, Value])= this(None, _contents)
 
   def get(key: String): Option[Value] = contents.get(key) match {
     case s @ Some(_) => s
@@ -48,8 +50,32 @@ class Environment(_parent: Option[Environment], _contents: Map[String, Value]) {
 object Interpreter {
   import Stmt._
   import Expression._
+  
+  val baseEnv = new Environment(Map(
+    "input" -> Constant(BuiltIn({
+      case (RazaString(prompt) :: Nil, _) => new RazaString(StdIn.readLine(prompt))
+    })),
+    "print" -> Constant(BuiltIn({
+      case (obj :: Nil, _) => println(obj.__str__.printableString); new RazaNil()
+    })),
+    "toNum" -> Constant(BuiltIn({
+      case (RazaString(str) :: Nil, _) if str matches raw"\d+" => new RazaNumber(str.toInt)
+      case (RazaString(str) :: Nil, _) if str matches raw"\d+\.\d+" => new RazaNumber(str.toDouble)
+      case (RazaString(str) :: Nil, _) => throw new PartialRazaRuntimeException("String cannot be parsed as int")
+    })),
+    "isDouble" -> Constant(BuiltIn({
+      case (RazaNumber(num: Double) :: Nil, _) => new RazaBool(true)
+      case (RazaNumber(num: Int) :: Nil, _) => new RazaBool(false)
+      case ((_: RazaObject) :: Nil, _) => throw new PartialRazaRuntimeException("isDouble must be called on a RazaNumber")
+    })),
+    "isInt" -> Constant(BuiltIn({
+      case (RazaNumber(num: Double) :: Nil, _) => new RazaBool(false)
+      case (RazaNumber(num: Int) :: Nil, _) => new RazaBool(true)
+      case ((_: RazaObject) :: Nil, _) => throw new PartialRazaRuntimeException("isInt must be called on a RazaNumber")
+    })),
+  ))
 
-  def execBlock(block: Block, env: Environment = new Environment()): RazaObject = 
+  def execBlock(block: Block, env: Environment = baseEnv): RazaObject = 
     block match {
       case ExprStmt(expr, _, _) :: Nil => evaluate(expr, env)
       case stmt :: stmts => execBlock(stmts, exec(stmt, env))
@@ -63,8 +89,6 @@ object Interpreter {
    */
   def exec(stmt: Stmt, env: Environment): Environment = try {
     stmt match {
-      case Print(expr, _, _) => println(evaluate(expr, env).printableString); env
-
       case ExprStmt(expr, _, _) => evaluate(expr, env); env
 
       case d @ Declaration(Identifier(name, _, _), expr, l, c) => (d match {
@@ -89,48 +113,55 @@ object Interpreter {
    * @param env the environment to evaluate it in
    * @return The value of the expression
    */
-  def evaluate(expr: Expression, env: Environment): RazaObject = expr match {
-    case Identifier(name, l, c) => env get name match {
-      case Some(value) => value.value
-      case None => runtimeException(l, c, s"Identifier $name not defined")
+  def evaluate(expr: Expression, env: Environment): RazaObject = try {
+    expr match {
+      case Identifier(name, l, c) => env get name match {
+        case Some(value) => value.value
+        case None => runtimeException(l, c, s"Identifier $name not defined")
+      }
+      case Str(str, _, _) => new RazaString(str)
+      case Integer(num, _, _) => new RazaNumber(num)
+      case Decimal(num, _, _) => new RazaNumber(num)
+      case True(_, _) => new RazaBool(true)
+      case False(_, _) => new RazaBool(false)
+      case Nil_(_, _) => new RazaNil
+      case FunctionDef(args, body, _, _) => new RazaFunction(args.map(_.name), body, env)
+
+      case If(condition, ifBlock, elseBlock, _, _) => {
+        val conditionValue = evaluate(condition, env)
+        val conditionResult = Try(conditionValue.asInstanceOf[RazaBool]) 
+          .getOrElse {runtimeException(condition.line, condition.column, 
+          s"If condition must be a RazaBool, not ${conditionValue.getClass.getSimpleName}")}
+
+          conditionResult match {
+            case RazaBool(true) => execBlock(ifBlock, env)
+            case RazaBool(false) => execBlock(elseBlock, env)
+          }
+      }
+
+      case Call(callee, args, _, _) => evaluate(callee, env)
+        .__call__(args.map {evaluate(_, env)}, env)
+
+      case Addition(left, right, _, _) => evaluate(left, env).__add__(evaluate(right, env))
+      case Subtraction(left, right, _, _) => evaluate(left, env).__minus__(evaluate(right, env))
+      case Multiplication(left, right, _, _) => evaluate(left, env).__mul__(evaluate(right, env))
+      case Division(left, right, _, _) => evaluate(left, env).__div__(evaluate(right, env))
+      case Equal(left, right, _, _) => evaluate(left, env).__eq__(evaluate(right, env))
+      case NotEqual(left, right, _, _) => evaluate(left, env).__neq__(evaluate(right, env))
+      case Less(left, right, _, _) => evaluate(left, env).__le__(evaluate(right, env))
+      case Greater(left, right, _, _) => evaluate(left, env).__gr__(evaluate(right, env))
+      case LessEqual(left, right, _, _) => evaluate(left, env).__leq__(evaluate(right, env))
+      case GreaterEqual(left, right, _, _) => evaluate(left, env).__geq__(evaluate(right, env))
+      case Not(expr, _, _) => evaluate(expr, env).__not__
+      case Minus(expr, _, _) => evaluate(expr, env).__neg__
     }
-    case Str(str, _, _) => new RazaString(str)
-    case Integer(num, _, _) => new RazaNumber(num)
-    case Decimal(num, _, _) => new RazaNumber(num)
-    case True(_, _) => new RazaBool(true)
-    case False(_, _) => new RazaBool(false)
-    case Nil_(_, _) => new RazaNil
-    case FunctionDef(args, body, _, _) => new RazaFunction(args.map(_.name), body, env)
-
-    case If(condition, ifBlock, elseBlock, _, _) => {
-      val conditionValue = evaluate(condition, env)
-      val conditionResult = Try(conditionValue.asInstanceOf[RazaBool]) 
-        .getOrElse {runtimeException(condition.line, condition.column, 
-        s"If condition must be a RazaBool, not ${conditionValue.getClass.getSimpleName}")}
-
-        conditionResult match {
-          case RazaBool(true) => execBlock(ifBlock, env)
-          case RazaBool(false) => execBlock(elseBlock, env)
-        }
-    }
-
-    case Call(callee, args, _, _) => evaluate(callee, env)
-      .__call__(args.map {evaluate(_, env)}, env)
-
-    case Addition(left, right, _, _) => evaluate(left, env).__add__(evaluate(right, env))
-    case Subtraction(left, right, _, _) => evaluate(left, env).__minus__(evaluate(right, env))
-    case Multiplication(left, right, _, _) => evaluate(left, env).__mul__(evaluate(right, env))
-    case Division(left, right, _, _) => evaluate(left, env).__div__(evaluate(right, env))
-    case Equal(left, right, _, _) => evaluate(left, env).__eq__(evaluate(right, env))
-    case NotEqual(left, right, _, _) => evaluate(left, env).__neq__(evaluate(right, env))
-    case Less(left, right, _, _) => evaluate(left, env).__le__(evaluate(right, env))
-    case Greater(left, right, _, _) => evaluate(left, env).__gr__(evaluate(right, env))
-    case LessEqual(left, right, _, _) => evaluate(left, env).__leq__(evaluate(right, env))
-    case GreaterEqual(left, right, _, _) => evaluate(left, env).__geq__(evaluate(right, env))
-    case Not(expr, _, _) => evaluate(expr, env).__not__
-    case Minus(expr, _, _) => evaluate(expr, env).__neg__
+  } catch {
+    case PartialRazaRuntimeException(msg) =>
+      runtimeException(expr.line, expr.column, msg)
   }
+
 
   private def runtimeException(line: Int, column: Int, msg: String) =
     throw new RazaRuntimeException(line, column, msg)
 } 
+

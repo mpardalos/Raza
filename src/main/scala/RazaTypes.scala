@@ -109,17 +109,38 @@ case class RazaNumber[T: DoubleOrInt](val value: T) extends RazaObject {
 case class RazaBool(val value: Boolean) extends RazaObject {
   override def __not__(): RazaBool = new RazaBool(!value)
 
+  override def __str__(): RazaString = new RazaString(value match {
+    case true => "True"
+    case false => "False"
+  })
+
   // Just for readability
   def unary_!(): RazaBool = this.__not__
 }
 
 case class RazaFunction(val argNames: List[String], val body: Block, val closure: Environment)
 extends RazaObject {
-  override def __call__(args: List[RazaObject], currentEnv: Environment) = {
-    val env = new Environment(closure) ++ currentEnv ++ Map(argNames.zip(args.map(v => Constant(v))): _*)
+  override def __call__(args: List[RazaObject], currentEnv: Environment) =
+    if (argNames.length == args.length) Interpreter.execBlock(body, (
+      new Environment(closure) ++ currentEnv
+      ++ Map(argNames.zip(args.map(v => Constant(v))): _*))
+    ) else throw new PartialRazaRuntimeException(
+      s"Wrong argument count for function. " +
+      s"Expected ${argNames.length}, received ${args.length}"
+    )
+}
 
-    Interpreter.execBlock(body, env)
+case class BuiltIn(func: PartialFunction[(List[RazaObject], Environment), RazaObject])
+extends RazaObject {
+  val errorCase: PartialFunction[(List[RazaObject], Environment), RazaObject] = {
+    case _ => throw new PartialRazaRuntimeException("Wrong signature for builtin function")
   }
+  
+  override def __call__(args: List[RazaObject], currentEnv: Environment) = 
+    (func orElse errorCase)(args, currentEnv)
+
+
+
 }
 
 case class RazaNil() extends RazaObject 

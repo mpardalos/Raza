@@ -21,9 +21,6 @@ object Stmt {
     def unapply(d: Declaration): Option[(Expression.Identifier, Expression, Int, Int)] = 
       Some((d.identifier, d.value, d.line, d.column))
   }
-
-  case class Print(value: Expression, l: Int, c: Int) extends Stmt(l, c)
-  // case class If(condition: Expression, ifBlock: Block, elseBlock: Block, l: Int, c: Int) extends Stmt(l, c)
 }
 
 sealed abstract class Expression(val line: Int, val column: Int)
@@ -291,14 +288,12 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
   }
 
   /* 
-   * stmt -> printStmt 
-   *       | letStmt
+   * stmt -> letStmt
    *       | varStmt
    *       | ifStmt
    *       | exprStmt
    *       | funcStmt
    *
-   * printStmt -> "print" expression ";"
    * letStmt -> "let" identifier "=" expression ";"
    * varStmt -> "var" identifier "=" expression ";"
    * ifStmt -> "if" expression block ( "else" block )? ";"
@@ -306,12 +301,6 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
    * funcStmt -> "fun" identifier "(" args ")" "=>" (expression | block)
    */
   def parseStmt: Stmt = peek match {
-    case Token.Print(l, c) => {
-      next[Token.Print]
-      val expr = parseExpression
-      maybeNext[Token.Semicolon] 
-      Stmt.Print(expr, l, c)
-    }
     case Token.Let(l, c) => {
       next[Token.Let]
       val id = next[Token.Identifier]
