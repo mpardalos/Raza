@@ -1,0 +1,7 @@
+fun adder(n) => fun (x) => x + n
+
+let plus5 = adder(5)
+let plus3 = adder(3)
+
+print(plus5(5)) # 10
+print(plus3(10)) # 13

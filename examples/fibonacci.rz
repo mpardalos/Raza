@@ -1,0 +1,11 @@
+fun fib(n) => if (n <= 1) 1 else (fib(n-1) + fib(n-2))
+
+print("Warning: Anything above ~25 will take ages")
+let n = toNum(input("Enter a number> "))
+
+if isInt(n) {
+    print("fib(" + n + ") = " + fib(n))
+} else {
+    print("You must provide an integer")
+}
+
