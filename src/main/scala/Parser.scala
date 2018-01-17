@@ -12,13 +12,14 @@ sealed abstract class Stmt(val line: Int, val column: Int)
 object Stmt {
   case class ExprStmt(expr: Expression, l: Int, c: Int) extends Stmt(l, c)
 
-  sealed abstract class Declaration(val identifier: Expression.Identifier, val value: Expression, 
+  sealed abstract class Assignment(val identifier: Expression.Identifier, val value: Expression, 
                                     override val line: Int,
                                     override val column: Int) extends Stmt(line, column)
-  case class Let(id: Expression.Identifier, v: Expression, l: Int, c: Int) extends Declaration(id, v, l, c)
-  case class Var(id: Expression.Identifier, v: Expression, l: Int, c: Int) extends Declaration(id, v, l, c)
-  object Declaration {
-    def unapply(d: Declaration): Option[(Expression.Identifier, Expression, Int, Int)] = 
+  case class Let(id: Expression.Identifier, v: Expression, l: Int, c: Int) extends Assignment(id, v, l, c)
+  case class Var(id: Expression.Identifier, v: Expression, l: Int, c: Int) extends Assignment(id, v, l, c)
+  case class PlainAssignment(id: Expression.Identifier, v: Expression, l: Int, c: Int) extends Assignment(id, v, l, c)
+  object Assignment {
+    def unapply(d: Assignment): Option[(Expression.Identifier, Expression, Int, Int)] = 
       Some((d.identifier, d.value, d.line, d.column))
   }
 }
@@ -293,9 +294,11 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
    *       | ifStmt
    *       | exprStmt
    *       | funcStmt
+   *       | assignment
    *
    * letStmt -> "let" identifier "=" expression ";"
    * varStmt -> "var" identifier "=" expression ";"
+   * assignment -> identifier "=" expression ";"
    * ifStmt -> "if" expression block ( "else" block )? ";"
    * exprStmt -> expression ";"
    * funcStmt -> "fun" identifier "(" args ")" "=>" (expression | block)
@@ -333,6 +336,17 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
         l, c)
     }
 
+    case Token.Identifier(name, l, c) if peek(2).isInstanceOf[Token.Equals] => {
+      next[Token.Identifier]
+      next[Token.Equals]
+      val expr = parseExpression
+      maybeNext[Token.Semicolon]
+
+      new Stmt.PlainAssignment(
+        new Expression.Identifier(name, l, c),
+        expr, l, c
+      )
+    }
 
     case Token(l, c) => {
       val expr = parseExpression
@@ -389,7 +403,8 @@ class Parser(allTokens: List[Token], val loglevel: Boolean = false) {
     Try({tag.runtimeClass.cast(peek).asInstanceOf[T]; next[T]}) toOption
 
 
-  private def peek: Token = allTokens(this.index)
+  private def peek: Token = peek()
+  private def peek(n: Int = 1): Token = allTokens(this.index + n - 1)
 
   private def log(str: String) = if (loglevel) println(str) else Unit
 

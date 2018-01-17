@@ -91,8 +91,8 @@ object Interpreter {
     stmt match {
       case ExprStmt(expr, _, _) => evaluate(expr, env); env
 
-      case d @ Declaration(Identifier(name, _, _), expr, l, c) => (d match {
-        case _: Var => env + (name -> Variable(evaluate(expr, env)))
+      case d @ Assignment(Identifier(name, _, _), expr, l, c) => (d match {
+        case _: Var | _: PlainAssignment=> env + (name -> Variable(evaluate(expr, env)))
         case _: Let => env + (name -> Constant(evaluate(expr, env)))
       }) match {
         case Right(env) => env

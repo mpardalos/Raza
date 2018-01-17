@@ -10,7 +10,7 @@ Lexer and parser are done, and it's reasonably easy to add new constructs. Both 
 handwritten, and parsing uses simple recursive descent. The interpreter structure is all in
 place and can interpret almost all basic constructs. 
 
-### Done
+### TODO 
 
 * Variables
 * Arithmetic
