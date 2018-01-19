@@ -121,10 +121,12 @@ case class RazaBool(val value: Boolean) extends RazaObject {
 case class RazaFunction(val argNames: List[String], val body: Block, val closure: Environment)
 extends RazaObject {
   override def __call__(args: List[RazaObject], currentEnv: Environment) =
-    if (argNames.length == args.length) Interpreter.execBlock(body, (
-      new Environment(closure) ++ currentEnv
-      ++ Map(argNames.zip(args.map(v => Constant(v))): _*))
-    ) else throw new PartialRazaRuntimeException(
+    if (argNames.length == args.length)
+      Interpreter.execBlock(body, (
+      new Environment(closure ++ currentEnv,
+        Map(argNames.zip(args.map(v => Constant(v))): _*))
+    )) 
+    else throw new PartialRazaRuntimeException(
       s"Wrong argument count for function. " +
       s"Expected ${argNames.length}, received ${args.length}"
     )

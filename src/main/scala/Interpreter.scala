@@ -17,10 +17,12 @@ class Environment(_parent: Option[Environment], _contents: Map[String, Value]) {
   private val parent: Option[Environment] = _parent
   private val contents: Map[String, Value] = _contents
 
-  def this() = this(None, new HashMap())
-  def this(_parent: Environment) = this(Some(_parent), new HashMap())
-  def this(_parent: Option[Environment]) = this(_parent, new HashMap())
-  def this(_contents: Map[String, Value])= this(None, _contents)
+  def this()                              = this(None, new HashMap[String, Value]())
+  def this(_parent: Environment)          = this(Some(_parent), new HashMap[String, Value]())
+  def this(_parent: Option[Environment])  = this(_parent, new HashMap[String, Value]())
+  def this(_contents: Map[String, Value]) = this(None, _contents)
+  def this(_parent: Environment,
+           _contents: Map[String, Value]) = this(Some(_parent), _contents)
 
   def get(key: String): Option[Value] = contents.get(key) match {
     case s @ Some(_) => s
@@ -35,11 +37,11 @@ class Environment(_parent: Option[Environment], _contents: Map[String, Value]) {
    * (Constant/Variable)
    */
   def +(kv: (String, Value)): Either[AssignmentFailure, Environment] = kv match {
-    case (name, v: Variable) => get(name) match {
+    case (name, v: Variable) => contents.get(name) match {
       case Some(Variable(_)) | None => Right(new Environment(parent, contents + kv))
       case Some(Constant(_)) => Left(AssignedVarToConst)
     }
-    case (name, v: Constant) => get(name) match {
+    case (name, v: Constant) => contents.get(name) match {
       case None => Right(new Environment(parent, contents + kv))
       case Some(Constant(_)) => Left(IsConstant)
       case Some(Variable(_)) => Left(AssignedConstToVar)
