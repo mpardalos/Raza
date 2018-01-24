@@ -17,12 +17,13 @@ place and can interpret almost all basic constructs.
 * Strings
 * Functions 
 * If statements and expressions
+* Assignment (maybe)
+* Some built-ins (string manipulation, ...)
 
 ### TODO
 
 * Loops
-* Assignment (maybe)
-* Some built-ins (math functions, string manipulation, ...)
+* Math builtins
 
 ## Future plans 
 
