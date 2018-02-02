@@ -1,7 +1,7 @@
-fun adder(n) => fun (x) => x + n
+let adder = fun(n) => fun (x) => x + n;
 
-let plus5 = adder(5)
-let plus3 = adder(3)
+let add1 = adder(1)
+let add2 = adder(2)
 
-print(plus5(5)) # 10
-print(plus3(10)) # 13
+print(add2(5))
+print(add1(6))
